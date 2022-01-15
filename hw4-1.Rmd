@@ -1,0 +1,207 @@
+---
+title: "sta141b hw4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+library(XML)
+library(RJSONIO)
+library(RCurl)
+library(rvest)
+library(stringr)
+library(ggplot2)
+```
+Cybercoder
+```{r}
+GetJobinfo = function(page){
+  ##Lists
+  Titlelist = list()
+  Loclist = list()
+  Salarylist = list()
+  Skillslist = list()
+  Preferedlist = list()
+  Degree = list()
+  Disc = list()
+  k = 1
+  ## read each page
+  for (num in 1:length(page)){
+    doc = htmlParse(page[num])
+    ## For job titles' information
+    jobtitle = getNodeSet(doc, "//div[@class = 'job-title']")
+    ## Read each job
+    for (j in 1:length(jobtitle)){
+      Title = xpathSApply(jobtitle[[j]], "./a", xmlValue, trim = TRUE)
+      Titlelist[k] = Title
+      ## For location information
+      location = getNodeSet(doc, "//div[@class = 'location']")
+      Loc = xpathSApply(location[[j]], ".", xmlValue, trim = TRUE)
+      Loclist[k] = Loc
+      
+      ## For wage and times
+      wage = getNodeSet(doc, "//div[@class = 'wage']")
+      Salary = xpathSApply(wage[[j]], ".", xmlValue, trim = TRUE)
+      Salarylist[k] = Salary
+     
+       ## get into detail links "href"
+      href = xpathSApply(doc, "//div[@class = 'job-title']//a/@href")
+      detaillink = paste("https://www.cybercoders.com",href[[j]], sep = "")
+      detaillines = readLines(detaillink)
+      detaildoc = htmlParse(detaillines)
+      
+      ##get discriptions
+      discrip = getNodeSet(detaildoc, "//div[@class = 'section-data section-data-title'][@data-section = 5]")
+      if (length(discrip) != 0){
+        Discription = xpathSApply(discrip[[1]], ".", xmlValue, trim = TRUE)
+      } else Discription = "No specific discription"
+      Disc[k] = Discription
+     
+      ##  get skills
+      skills = getNodeSet(detaildoc, "//div[@class = 'section-data section-data-title'][@data-section = 7]")
+      ## Some jobs don't require any skills
+      if (length(skills) != 0){
+        Skills = xpathSApply(skills[[1]], ".", xmlValue, trim = TRUE)
+        Skills = toString(unlist(strsplit(toString(Skills), "\n-*")))
+      } else Skills = "No specific skill required"
+      Skillslist[k] = Skills  ##Skills required
+      
+      ## get degree
+      if (length(skills) != 0){
+        Skills = xpathSApply(skills[[1]], ".", xmlValue, trim = TRUE)
+        Skills = toString(Skills)
+      } else Skills = "No specific skill required"
+      frag = unlist(strsplit(Skills, "\n"))
+      degree = grep("degree|MS|BS", frag, value = TRUE, ignore.case = FALSE)
+      if (length(degree) != 0){
+      Degree[k] = degree
+      } else Degree[k] = "No specific degree required"
+      
+      ## For preferred Skills
+      prefer = getNodeSet(detaildoc, "//span[@class = 'skill-name']")
+      Preferedls = list()
+      for (i in 1:length(prefer)){
+        Preferedskills = xpathSApply(prefer[[i]], ".", xmlValue, trim = TRUE)
+        Preferedls[i] = Preferedskills
+      }
+      Prefered = toString(Preferedls)
+      Preferedlist[k] = Prefered  ##Prefered skills
+      k = k + 1
+    }
+  }
+  
+  
+  Titlelist = unlist(Titlelist)
+  Loclist = unlist(Loclist)
+  Salarylist = unlist(Salarylist)
+  Skillslist = unlist(Skillslist)
+  Preferedlist = unlist(Preferedlist)
+  Degree = unlist(Degree)
+  Disc = unlist(Disc)
+  K = data.frame(`Job Title` = Titlelist, Location = Loclist, Salary = Salarylist, Discription = Disc, Skills = Skillslist, Degree, `Preferred skills` = Preferedlist)
+  return(K)
+
+}
+
+
+
+
+#URL links for Data Analyst
+Analyst = list()
+pagenum = 1:2
+for (num in 1:2){
+Ana = getForm("https://www.cybercoders.com/search/?", page = pagenum[num], searchterms = "Data Analyst", searchlocation = "", newsearch = "true", originalsearch = "true", sorttype = "")
+Analyst[num] = Ana
+}
+Analyst = unlist(Analyst)
+
+#URL links for data scientist
+Sci_1 = getForm("https://www.cybercoders.com/search/?", page = "1", searchterms = "data scientist", searchlocation = "", newsearch = "true", originalsearch = "true", sorttype = "")
+
+
+##URL links for data engineer
+Engineer = list()
+pagenum = 1:8
+for (num in 1:8){
+Eng = getForm("https://www.cybercoders.com/search/?", page = pagenum[num], searchterms = "Data%20Engineer", searchlocation = "", newsearch = "true", originalsearch = "true", sorttype = "")
+Engineer[num] = Eng
+}
+Engineer = unlist(Engineer)
+
+Result = GetJobinfo(c(Analyst, Sci_1, Engineer))
+Result
+
+## Text Analysis: computer language
+num_r = grepl("\\bR\\b", Result$Skills)
+num_python = grepl("python", Result$Skills, ignore.case = TRUE)
+num_Css = grepl("C\\+\\+", Result$Skills, ignore.case = TRUE)
+num_C = grepl("\\bC\\b", Result$Skills)
+num_sql = grepl("sql", Result$Skills, ignore.case = TRUE)
+
+num_r[num_r == TRUE] = 1
+num_r[num_r == FALSE] = 0
+num_python[num_python == TRUE] = 1
+num_python[num_python == FALSE] = 0
+num_C[num_C == TRUE] = 1
+num_C[num_C == FALSE] = 0
+num_sql[num_sql == TRUE] = 1
+num_sql[num_sql == FALSE] = 0
+num_Css[num_Css == TRUE] = 1
+num_Css[num_Css == FALSE] = 0
+
+R = sum(num_r)
+Python = sum(num_python)
+Cplusplus = sum(num_Css)
+C = sum(num_C)
+SQL = sum(num_sql)
+
+language = as.factor(c("R", "Python", "C++", "C", "SQL"))
+number =  c(R, Python, Cplusplus, C, SQL)
+
+data = data.frame(language, number)
+
+ggplot(data, aes(x = language, y = number)) + geom_bar(stat='identity', aes(col = language, fill = language))
+
+## Text Analysis: salary
+
+lowersal = list()
+uppersal = list()
+for (i in 1:nrow(Result)){
+  Sal = strsplit(as.vector(Result$Salary), "[[:punct:]]")[[i]]
+  k = grep("[0-9]", Sal, value = TRUE)
+  p = gsub("[a-zA-Z]", "", k)
+  lowersal[i] = as.numeric(p[1])
+  uppersal[i] = as.numeric(p[2])
+}
+
+numAna = nrow(GetJobinfo(Analyst))
+numSci = nrow(GetJobinfo(Sci_1))
+numEng = nrow(GetJobinfo(Engineer))
+numAna
+numSci
+numEng
+
+l_A = mean(na.omit(unlist(lowersal[1:27])))
+u_A = mean(na.omit(unlist(uppersal[1:27])))
+l_S = mean(na.omit(unlist(lowersal[28:45])))
+u_S = mean(na.omit(unlist(uppersal[28:45])))
+l_E = mean(na.omit(unlist(lowersal[46:205])))
+u_E = mean(na.omit(unlist(uppersal[46:205])))
+
+l = c(l_A, l_S, l_E)
+u = c(u_A, u_S, u_E)
+
+
+
+
+job = c("Analyst", "Scientist", "Engineer")
+J = as.data.frame(cbind(job,l,u))
+J = data.frame(job = J[,1], lowest = J[,2], highest = J[,3])
+ggplot(data = J, aes(job, lowest)) + geom_bar(stat='identity', aes(col = job, fill = job))
+ggplot(data = J, aes(job, highest)) + geom_bar(stat='identity', aes(col = job, fill = job))
+
+```
+
+

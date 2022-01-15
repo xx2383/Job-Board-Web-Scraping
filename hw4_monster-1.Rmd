@@ -1,0 +1,39 @@
+---
+title: "hw4_monster"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+monster
+```{r}
+library(RJSONIO)
+library(RCurl)
+library(XML)
+pagenum = 1
+i = 1
+
+tt = getForm("https://www.monster.com/jobs/search/pagination/?", q = "data-scientist", isDynamicPage = "true", isMKPagination = "true", page = pagenum)
+u1 = fromJSON(tt)
+
+##  job list length
+str(u1[[i]])
+length(u1)
+
+##  job content
+JOB = u1[[i]]
+
+##  Title and location
+Title = JOB$Title
+location  = JOB$LocationText
+
+##  job details -- html type
+Detailslink = JOB$TitleLink
+tt = readLines(Detailslink)
+doc = htmlParse(tt)
+
+
+
+getNodeSet(doc, "//ul//text()[contains(., 'skills')]")
